@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice Reminder Recorder</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #111827;
+      color: #f3f4f6;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .card {
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 16px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 460px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 0.25rem;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 0.825rem;
+      color: #9ca3af;
+      margin-bottom: 1.75rem;
+    }
+
+    .field {
+      margin-bottom: 1.25rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.825rem;
+      font-weight: 500;
+      color: #9ca3af;
+      margin-bottom: 0.4rem;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 0.625rem 0.875rem;
+      border-radius: 8px;
+      border: 1px solid #374151;
+      background: #111827;
+      color: #f3f4f6;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="number"]:focus { border-color: #6366f1; }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 0.3rem;
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      text-align: center;
+      text-decoration: none;
+      line-height: 1.5;
+    }
+    .btn:hover:not(:disabled) { opacity: 0.87; transform: translateY(-1px); }
+    .btn:active:not(:disabled) { transform: translateY(0); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-record  { background: #ef4444; color: #fff; }
+    .btn-stop    { background: #f59e0b; color: #111; }
+    .btn-download{ background: #6366f1; color: #fff; margin-top: 0.75rem; }
+    .btn-reset   { background: #374151; color: #f3f4f6; margin-top: 0.6rem; }
+
+    /* ── Recording state ── */
+    .timer {
+      text-align: center;
+      font-size: 2.75rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #ef4444;
+      margin: 0.5rem 0 0.25rem;
+      letter-spacing: 0.04em;
+    }
+
+    .rec-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      font-size: 0.875rem;
+      color: #9ca3af;
+      margin-bottom: 1.25rem;
+    }
+
+    .rec-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #ef4444;
+      flex-shrink: 0;
+      animation: blink 1s step-start infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── Level meter ── */
+    .meter-wrap {
+      background: #111827;
+      border-radius: 6px;
+      height: 10px;
+      overflow: hidden;
+      margin-bottom: 1.25rem;
+    }
+    .meter-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #22c55e 0%, #eab308 70%, #ef4444 100%);
+      border-radius: 6px;
+      transition: width 0.08s ease-out;
+    }
+
+    /* ── Status / result ── */
+    .status-box {
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 0.65rem 0.875rem;
+      font-size: 0.8rem;
+      color: #9ca3af;
+      margin-bottom: 0.875rem;
+      text-align: center;
+    }
+
+    audio {
+      width: 100%;
+      margin-bottom: 0.125rem;
+      border-radius: 8px;
+      background: #111827;
+    }
+
+    .processing {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1.5rem 0;
+      color: #9ca3af;
+      font-size: 0.9rem;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #374151;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
+
+    .divider { border: none; border-top: 1px solid #374151; margin: 1.25rem 0; }
+
+    .saved-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.6rem;
+    }
+    .saved-label { font-size: 0.875rem; font-weight: 600; color: #d1d5db; }
+
+    .btn-icon {
+      background: none;
+      border: 1px solid #374151;
+      color: #9ca3af;
+      border-radius: 6px;
+      padding: 0.2rem 0.5rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-icon:hover { background: #374151; color: #f3f4f6; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      cursor: pointer;
+      margin: 0.75rem 0 0.25rem;
+      user-select: none;
+    }
+    .toggle-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #6366f1;
+      cursor: pointer;
+    }
+    .toggle-label { font-size: 0.875rem; color: #9ca3af; }
+
+    .btn-save { background: #059669; color: #fff; margin-top: 0.6rem; }
+
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(4rem);
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: #f3f4f6;
+      padding: 0.625rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 999;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🎙 Voice Reminder</h1>
+  <p class="subtitle">Record a clip and pad it to your chosen length — 100% local.</p>
+
+  <!-- ──────────────── SETUP ──────────────── -->
+  <div id="setupSection">
+    <div class="field">
+      <label for="totalDuration">Total file length (minutes)</label>
+      <input type="number" id="totalDuration" value="1" min="0.1" max="120" step="0.5">
+      <p class="hint">Recording will be padded with silence to reach this duration.</p>
+    </div>
+    <button class="btn btn-record" id="startBtn">⏺ Start Recording</button>
+
+    <hr class="divider" id="savedDivider" style="display:none">
+    <div id="savedSection" class="hidden">
+      <div class="saved-header">
+        <span class="saved-label">💾 Previously saved</span>
+        <button class="btn-icon" id="clearSavedBtn" title="Delete saved recording">✕</button>
+      </div>
+      <div class="status-box" id="savedStatus"></div>
+      <audio id="savedPlayer" controls style="width:100%;margin-bottom:0.5rem"></audio>
+      <a id="savedDownloadLink" class="btn btn-download" style="font-size:0.875rem;padding:0.6rem 1rem">⬇ Download saved WAV</a>
+    </div>
+  </div>
+
+  <!-- ──────────────── RECORDING ──────────────── -->
+  <div id="recordingSection" class="hidden">
+    <div class="timer" id="timerDisplay">0:00</div>
+    <div class="rec-label"><span class="rec-dot"></span> Recording…</div>
+    <div class="meter-wrap"><div class="meter-bar" id="meterBar"></div></div>
+    <button class="btn btn-stop" id="stopBtn">⏹ Stop Recording</button>
+  </div>
+
+  <!-- ──────────────── PROCESSING ──────────────── -->
+  <div id="processingSection" class="hidden">
+    <div class="processing">
+      <div class="spinner"></div>
+      <span>Processing audio…</span>
+    </div>
+  </div>
+
+  <!-- ──────────────── RESULT ──────────────── -->
+  <div id="resultSection" class="hidden">
+    <div class="status-box" id="resultStatus"></div>
+    <audio id="audioPlayer" controls></audio>
+    <label class="toggle-row">
+      <input type="checkbox" id="loopToggle">
+      <span class="toggle-label">🔁 Loop playback</span>
+    </label>
+    <a id="downloadLink" class="btn btn-download">⬇ Download WAV</a>
+    <button class="btn btn-save" id="saveBtn">💾 Save to Browser</button>
+    <button class="btn btn-reset" id="resetBtn">↩ Record Again</button>
+  </div>
+</div>
+
+<script>
+  /* ─── DOM references ─── */
+  const startBtn          = document.getElementById('startBtn');
+  const stopBtn           = document.getElementById('stopBtn');
+  const resetBtn          = document.getElementById('resetBtn');
+  const saveBtn           = document.getElementById('saveBtn');
+  const clearSavedBtn     = document.getElementById('clearSavedBtn');
+  const timerDisplay      = document.getElementById('timerDisplay');
+  const meterBar          = document.getElementById('meterBar');
+  const audioPlayer       = document.getElementById('audioPlayer');
+  const loopToggle        = document.getElementById('loopToggle');
+  const downloadLink      = document.getElementById('downloadLink');
+  const resultStatus      = document.getElementById('resultStatus');
+  const savedSection      = document.getElementById('savedSection');
+  const savedDivider      = document.getElementById('savedDivider');
+  const savedPlayer       = document.getElementById('savedPlayer');
+  const savedDownloadLink = document.getElementById('savedDownloadLink');
+  const savedStatus       = document.getElementById('savedStatus');
+
+  /* ─── State ─── */
+  let mediaRecorder    = null;
+  let chunks           = [];
+  let timerInterval    = null;
+  let startTime        = 0;
+  let analyser         = null;
+  let analyserNode     = null;
+  let meterRAF         = null;
+  let currentBlobUrl   = null;
+  let currentWavBuffer = null;
+  let currentInfo      = '';
+
+  /* ─── Section toggling ─── */
+  function showOnly(id) {
+    ['setupSection', 'recordingSection', 'processingSection', 'resultSection']
+      .forEach(s => document.getElementById(s).classList.toggle('hidden', s !== id));
+  }
+
+  /* ─── Timer ─── */
+  function updateTimer() {
+    const elapsed = (Date.now() - startTime) / 1000;
+    const m = Math.floor(elapsed / 60);
+    const s = Math.floor(elapsed % 60);
+    timerDisplay.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  /* ─── Level meter via AnalyserNode ─── */
+  function startMeter(stream) {
+    const actx = new AudioContext();
+    analyserNode = actx.createAnalyser();
+    analyserNode.fftSize = 256;
+    actx.createMediaStreamSource(stream).connect(analyserNode);
+    const data = new Uint8Array(analyserNode.frequencyBinCount);
+    analyser = actx;
+
+    function tick() {
+      analyserNode.getByteFrequencyData(data);
+      const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length);
+      meterBar.style.width = Math.min(100, (rms / 128) * 100) + '%';
+      meterRAF = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function stopMeter() {
+    if (meterRAF) cancelAnimationFrame(meterRAF);
+    if (analyser) analyser.close();
+    meterBar.style.width = '0%';
+  }
+
+  /* ─── Start recording ─── */
+  startBtn.addEventListener('click', async () => {
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch (err) {
+      alert('Microphone access denied or unavailable:\n' + err.message);
+      return;
+    }
+
+    chunks = [];
+    const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/mp4']
+      .find(m => MediaRecorder.isTypeSupported(m)) ?? '';
+
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      stopMeter();
+      processRecording();
+    };
+
+    mediaRecorder.start(100); // collect in 100 ms chunks
+    startTime = Date.now();
+    timerInterval = setInterval(updateTimer, 100);
+    startMeter(stream);
+    showOnly('recordingSection');
+  });
+
+  /* ─── Stop recording ─── */
+  stopBtn.addEventListener('click', () => {
+    clearInterval(timerInterval);
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    showOnly('processingSection');
+  });
+
+  /* ─── Loop toggle ─── */
+  loopToggle.addEventListener('change', () => { audioPlayer.loop = loopToggle.checked; });
+
+  /* ─── Reset ─── */
+  resetBtn.addEventListener('click', () => {
+    if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
+    audioPlayer.src = '';
+    audioPlayer.loop = false;
+    loopToggle.checked = false;
+    downloadLink.removeAttribute('href');
+    currentWavBuffer = null;
+    currentInfo = '';
+    showOnly('setupSection');
+  });
+
+  /* ─── IndexedDB ─── */
+  const DB_NAME    = 'VoiceReminderDB';
+  const DB_VERSION = 1;
+  const STORE_NAME = 'recordings';
+  const SAVED_KEY  = 'latest';
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME);
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror   = e => reject(e.target.error);
+    });
+  }
+
+  async function persistRecording(wavBuffer, info) {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put({ wavBuffer, info, date: Date.now() }, SAVED_KEY);
+    await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+    db.close();
+  }
+
+  async function loadSavedRecording() {
+    try {
+      const db  = await openDB();
+      const tx  = db.transaction(STORE_NAME, 'readonly');
+      const req = tx.objectStore(STORE_NAME).get(SAVED_KEY);
+      const record = await new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = rej; });
+      db.close();
+      if (record) showSavedPanel(record);
+    } catch { /* IndexedDB unavailable or empty */ }
+  }
+
+  function showSavedPanel(record) {
+    if (savedPlayer.src) URL.revokeObjectURL(savedPlayer.src);
+    const blob = new Blob([record.wavBuffer], { type: 'audio/wav' });
+    const url  = URL.createObjectURL(blob);
+    savedPlayer.src = url;
+    savedDownloadLink.href = url;
+    savedDownloadLink.download = `reminder-${record.date}.wav`;
+    savedStatus.textContent = `Saved ${new Date(record.date).toLocaleString()}  ·  ${record.info}`;
+    savedSection.classList.remove('hidden');
+    savedDivider.style.display = '';
+  }
+
+  async function deleteSavedRecording() {
+    try {
+      const db = await openDB();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).delete(SAVED_KEY);
+      await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+      db.close();
+    } catch { /* ignore */ }
+    if (savedPlayer.src) URL.revokeObjectURL(savedPlayer.src);
+    savedPlayer.src = '';
+    savedDownloadLink.removeAttribute('href');
+    savedSection.classList.add('hidden');
+    savedDivider.style.display = 'none';
+  }
+
+  /* ─── Save to browser ─── */
+  saveBtn.addEventListener('click', async () => {
+    if (!currentWavBuffer) return;
+    saveBtn.disabled = true;
+    try {
+      await persistRecording(currentWavBuffer, currentInfo);
+      showSavedPanel({ wavBuffer: currentWavBuffer, info: currentInfo, date: Date.now() });
+      showToast('✓ Saved to browser storage');
+    } catch (err) {
+      showToast('⚠ Could not save: ' + err.message);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  /* ─── Clear saved ─── */
+  clearSavedBtn.addEventListener('click', async () => {
+    await deleteSavedRecording();
+    showToast('Saved recording deleted');
+  });
+
+  /* ─── Toast ─── */
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2500);
+  }
+
+  /* ─── Load saved recording on startup ─── */
+  loadSavedRecording();
+
+  /* ─── Process + pad ─── */
+  async function processRecording() {
+    const totalMins = Math.max(0.1, parseFloat(document.getElementById('totalDuration').value) || 1);
+    const totalSecs = totalMins * 60;
+
+    try {
+      const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      const arrayBuf = await blob.arrayBuffer();
+
+      const ctx = new AudioContext();
+      const decoded = await ctx.decodeAudioData(arrayBuf);
+      await ctx.close();
+
+      const sr          = decoded.sampleRate;
+      const ch          = decoded.numberOfChannels;
+      const recSamples  = decoded.length;
+      const totalSamples = Math.max(recSamples, Math.round(totalSecs * sr));
+
+      // Build padded buffer (AudioContext zero-initialises channel data)
+      const offlineCtx = new OfflineAudioContext(ch, totalSamples, sr);
+      const src = offlineCtx.createBufferSource();
+      src.buffer = decoded;
+      src.connect(offlineCtx.destination);
+      src.start(0);
+      const paddedBuffer = await offlineCtx.startRendering();
+
+      const wavArrayBuf = audioBufferToWav(paddedBuffer);
+      const wavBlob     = new Blob([wavArrayBuf], { type: 'audio/wav' });
+      currentBlobUrl    = URL.createObjectURL(wavBlob);
+
+      const recDur  = (recSamples  / sr).toFixed(1);
+      const padDur  = ((totalSamples - recSamples) / sr).toFixed(1);
+      const totDur  = (totalSamples / sr).toFixed(1);
+
+      currentInfo      = `Recorded: ${recDur}s  ·  Silence pad: ${padDur}s  ·  Total: ${totDur}s`;
+      currentWavBuffer = wavArrayBuf;
+
+      resultStatus.textContent     = currentInfo;
+
+      audioPlayer.src              = currentBlobUrl;
+      audioPlayer.loop             = loopToggle.checked;
+      downloadLink.href            = currentBlobUrl;
+      downloadLink.download        = `reminder-${Date.now()}.wav`;
+
+      showOnly('resultSection');
+
+    } catch (err) {
+      showOnly('setupSection');
+      alert('Error processing audio:\n' + err.message);
+    }
+  }
+
+  /* ─── WAV encoder (16-bit PCM, little-endian) ─── */
+  function audioBufferToWav(buffer) {
+    const numCh     = buffer.numberOfChannels;
+    const sr        = buffer.sampleRate;
+    const numFrames = buffer.length;
+    const BPS       = 16;
+    const blockAlign = numCh * (BPS / 8);
+    const dataSize   = numFrames * blockAlign;
+
+    const ab   = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(ab);
+
+    function str(offset, s) {
+      for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
+    }
+
+    // RIFF chunk
+    str(0,  'RIFF');
+    view.setUint32(4,  36 + dataSize, true);
+    str(8,  'WAVE');
+    // fmt  sub-chunk
+    str(12, 'fmt ');
+    view.setUint32(16, 16, true);          // sub-chunk size = 16 for PCM
+    view.setUint16(20, 1,  true);          // PCM format
+    view.setUint16(22, numCh, true);
+    view.setUint32(24, sr,    true);
+    view.setUint32(28, sr * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, BPS,  true);
+    // data sub-chunk
+    str(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    // Interleaved 16-bit samples
+    let off = 44;
+    for (let i = 0; i < numFrames; i++) {
+      for (let c = 0; c < numCh; c++) {
+        const sample = buffer.getChannelData(c)[i];
+        const pcm = Math.max(-32768, Math.min(32767, Math.round(sample * 32767)));
+        view.setInt16(off, pcm, true);
+        off += 2;
+      }
+    }
+
+    return ab;
+  }
+</script>
+<div class="toast" id="toast"></div>
+</body>
+</html>
