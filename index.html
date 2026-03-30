@@ -224,6 +224,7 @@
     .toggle-label { font-size: 0.875rem; color: #9ca3af; }
 
     .btn-save { background: #059669; color: #fff; margin-top: 0.6rem; }
+    .btn-send { background: #0ea5e9; color: #fff; margin-top: 0.6rem; }
 
     .toast {
       position: fixed;
@@ -297,6 +298,11 @@
     </label>
     <a id="downloadLink" class="btn btn-download">⬇ Download WAV</a>
     <button class="btn btn-save" id="saveBtn">💾 Save to Browser</button>
+    <div class="field" style="margin-top:0.75rem;margin-bottom:0">
+      <label for="sendPassword">Password</label>
+      <input type="password" id="sendPassword" placeholder="Enter password to send" style="width:100%;padding:0.625rem 0.875rem;border-radius:8px;border:1px solid #374151;background:#111827;color:#f3f4f6;font-size:1rem;outline:none;">
+    </div>
+    <button class="btn btn-send" id="sendBtn">📤 Send File to J</button>
     <button class="btn btn-reset" id="resetBtn">↩ Record Again</button>
   </div>
 </div>
@@ -494,6 +500,33 @@
       showToast('⚠ Could not save: ' + err.message);
     } finally {
       saveBtn.disabled = false;
+    }
+  });
+
+  /* ─── Send to J ─── */
+  const SEND_URL = 'https://script.google.com/macros/s/AKfycbw9EI2TaY0XLm2gVcDVjckaiHIx5KNnHQ6okMDbSpYjh7KLdzeFLVo-qgyShTBsw7oghw/exec';
+  const sendBtn = document.getElementById('sendBtn');
+
+  sendBtn.addEventListener('click', async () => {
+    if (!currentWavBuffer) return;
+    const password = document.getElementById('sendPassword').value;
+    if (!password) { showToast('⚠ Please enter a password'); return; }
+    sendBtn.disabled = true;
+    sendBtn.textContent = '⏳ Sending…';
+    try {
+      const bytes = Array.from(new Uint8Array(currentWavBuffer));
+      const filename = `reminder-${Date.now()}.wav`;
+      const res = await fetch(SEND_URL, {
+        method: 'POST',
+        body: JSON.stringify({ password, bytes, contentType: 'audio/wav', filename })
+      });
+      const json = await res.json();
+      showToast('✓ Sent! File ID: ' + json.fileId);
+    } catch (err) {
+      showToast('⚠ Send failed: ' + err.message);
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = '📤 Send File to J';
     }
   });
 
