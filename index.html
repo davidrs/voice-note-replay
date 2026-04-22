@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Voice Reminder Recorder</title>
+  <title>Voice Reassurance Loop Recorder</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -187,26 +187,6 @@
 
     .divider { border: none; border-top: 1px solid #374151; margin: 1.25rem 0; }
 
-    .saved-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 0.6rem;
-    }
-    .saved-label { font-size: 0.875rem; font-weight: 600; color: #d1d5db; }
-
-    .btn-icon {
-      background: none;
-      border: 1px solid #374151;
-      color: #9ca3af;
-      border-radius: 6px;
-      padding: 0.2rem 0.5rem;
-      cursor: pointer;
-      font-size: 0.8rem;
-      transition: background 0.15s, color 0.15s;
-    }
-    .btn-icon:hover { background: #374151; color: #f3f4f6; }
-
     .toggle-row {
       display: flex;
       align-items: center;
@@ -223,7 +203,6 @@
     }
     .toggle-label { font-size: 0.875rem; color: #9ca3af; }
 
-    .btn-save { background: #059669; color: #fff; margin-top: 0.6rem; }
     .btn-send { background: #0ea5e9; color: #fff; margin-top: 0.6rem; }
 
     .toast {
@@ -248,8 +227,8 @@
 <body>
 
 <div class="card">
-  <h1>🎙 Voice Reminder</h1>
-  <p class="subtitle">Record a clip and pad it to your chosen length — 100% local.</p>
+  <h1>🎙 Voice Reassurance Loop</h1>
+  <p class="subtitle">Record a clip and the site will pad it to your chosen length.</p>
 
   <!-- ──────────────── SETUP ──────────────── -->
   <div id="setupSection">
@@ -259,17 +238,6 @@
       <p class="hint">Recording will be padded with silence to reach this duration.</p>
     </div>
     <button class="btn btn-record" id="startBtn">⏺ Start Recording</button>
-
-    <hr class="divider" id="savedDivider" style="display:none">
-    <div id="savedSection" class="hidden">
-      <div class="saved-header">
-        <span class="saved-label">💾 Previously saved</span>
-        <button class="btn-icon" id="clearSavedBtn" title="Delete saved recording">✕</button>
-      </div>
-      <div class="status-box" id="savedStatus"></div>
-      <audio id="savedPlayer" controls style="width:100%;margin-bottom:0.5rem"></audio>
-      <a id="savedDownloadLink" class="btn btn-download" style="font-size:0.875rem;padding:0.6rem 1rem">⬇ Download saved WAV</a>
-    </div>
   </div>
 
   <!-- ──────────────── RECORDING ──────────────── -->
@@ -297,7 +265,6 @@
       <span class="toggle-label">🔁 Loop playback</span>
     </label>
     <a id="downloadLink" class="btn btn-download">⬇ Download WAV</a>
-    <button class="btn btn-save" id="saveBtn">💾 Save to Browser</button>
     <div class="field" style="margin-top:0.75rem;margin-bottom:0">
       <label for="sendPassword">Password</label>
       <input type="password" id="sendPassword" placeholder="Enter password to send" style="width:100%;padding:0.625rem 0.875rem;border-radius:8px;border:1px solid #374151;background:#111827;color:#f3f4f6;font-size:1rem;outline:none;">
@@ -312,19 +279,12 @@
   const startBtn          = document.getElementById('startBtn');
   const stopBtn           = document.getElementById('stopBtn');
   const resetBtn          = document.getElementById('resetBtn');
-  const saveBtn           = document.getElementById('saveBtn');
-  const clearSavedBtn     = document.getElementById('clearSavedBtn');
   const timerDisplay      = document.getElementById('timerDisplay');
   const meterBar          = document.getElementById('meterBar');
   const audioPlayer       = document.getElementById('audioPlayer');
   const loopToggle        = document.getElementById('loopToggle');
   const downloadLink      = document.getElementById('downloadLink');
   const resultStatus      = document.getElementById('resultStatus');
-  const savedSection      = document.getElementById('savedSection');
-  const savedDivider      = document.getElementById('savedDivider');
-  const savedPlayer       = document.getElementById('savedPlayer');
-  const savedDownloadLink = document.getElementById('savedDownloadLink');
-  const savedStatus       = document.getElementById('savedStatus');
 
   /* ─── State ─── */
   let mediaRecorder    = null;
@@ -427,82 +387,6 @@
     showOnly('setupSection');
   });
 
-  /* ─── IndexedDB ─── */
-  const DB_NAME    = 'VoiceReminderDB';
-  const DB_VERSION = 1;
-  const STORE_NAME = 'recordings';
-  const SAVED_KEY  = 'latest';
-
-  function openDB() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME);
-      req.onsuccess = e => resolve(e.target.result);
-      req.onerror   = e => reject(e.target.error);
-    });
-  }
-
-  async function persistRecording(wavBuffer, info) {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put({ wavBuffer, info, date: Date.now() }, SAVED_KEY);
-    await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
-    db.close();
-  }
-
-  async function loadSavedRecording() {
-    try {
-      const db  = await openDB();
-      const tx  = db.transaction(STORE_NAME, 'readonly');
-      const req = tx.objectStore(STORE_NAME).get(SAVED_KEY);
-      const record = await new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = rej; });
-      db.close();
-      if (record) showSavedPanel(record);
-    } catch { /* IndexedDB unavailable or empty */ }
-  }
-
-  function showSavedPanel(record) {
-    if (savedPlayer.src) URL.revokeObjectURL(savedPlayer.src);
-    const blob = new Blob([record.wavBuffer], { type: 'audio/wav' });
-    const url  = URL.createObjectURL(blob);
-    savedPlayer.src = url;
-    savedDownloadLink.href = url;
-    savedDownloadLink.download = `reminder-${record.date}.wav`;
-    savedStatus.textContent = `Saved ${new Date(record.date).toLocaleString()}  ·  ${record.info}`;
-    savedSection.classList.remove('hidden');
-    savedDivider.style.display = '';
-  }
-
-  async function deleteSavedRecording() {
-    try {
-      const db = await openDB();
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).delete(SAVED_KEY);
-      await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
-      db.close();
-    } catch { /* ignore */ }
-    if (savedPlayer.src) URL.revokeObjectURL(savedPlayer.src);
-    savedPlayer.src = '';
-    savedDownloadLink.removeAttribute('href');
-    savedSection.classList.add('hidden');
-    savedDivider.style.display = 'none';
-  }
-
-  /* ─── Save to browser ─── */
-  saveBtn.addEventListener('click', async () => {
-    if (!currentWavBuffer) return;
-    saveBtn.disabled = true;
-    try {
-      await persistRecording(currentWavBuffer, currentInfo);
-      showSavedPanel({ wavBuffer: currentWavBuffer, info: currentInfo, date: Date.now() });
-      showToast('✓ Saved to browser storage');
-    } catch (err) {
-      showToast('⚠ Could not save: ' + err.message);
-    } finally {
-      saveBtn.disabled = false;
-    }
-  });
-
   /* ─── Send to J ─── */
   const SEND_URL = 'https://script.google.com/macros/s/AKfycbw9EI2TaY0XLm2gVcDVjckaiHIx5KNnHQ6okMDbSpYjh7KLdzeFLVo-qgyShTBsw7oghw/exec';
   const sendBtn = document.getElementById('sendBtn');
@@ -530,12 +414,6 @@
     }
   });
 
-  /* ─── Clear saved ─── */
-  clearSavedBtn.addEventListener('click', async () => {
-    await deleteSavedRecording();
-    showToast('Saved recording deleted');
-  });
-
   /* ─── Toast ─── */
   function showToast(msg) {
     const el = document.getElementById('toast');
@@ -543,9 +421,6 @@
     el.classList.add('show');
     setTimeout(() => el.classList.remove('show'), 2500);
   }
-
-  /* ─── Load saved recording on startup ─── */
-  loadSavedRecording();
 
   /* ─── Process + pad ─── */
   async function processRecording() {
